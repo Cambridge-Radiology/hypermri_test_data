@@ -1,0 +1,46 @@
+# .github/workflows/verify_lfs.yml
+name: Verify Git LFS Tracking
+
+on:
+  push:
+    branches:
+      - main
+      - develop # Add other relevant branches
+  pull_request:
+    branches:
+      - main
+      - develop # Add other relevant branches
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  verify-lfs-tracking:
+    name: Verify Binary Files are LFS Tracked
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history and tags is necessary for git lfs commands
+          # to correctly identify files tracked in the history.
+          fetch-depth: 0
+          # Automatically fetch LFS files
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x' # Use a specific version if needed, e.g., '3.11'
+
+      # If your script has dependencies, install them here
+      # - name: Install dependencies
+      #   run: pip install -r requirements.txt
+
+      - name: Make verification script executable
+        # Adjust the path to where your script is located
+        run: chmod +x .github/scripts/validate-lfs-track.py
+
+      - name: Run LFS Verification Script
+        # Adjust the path to where your script is located
+        # Execute the python script directly
+        run: python .github/scripts/validate-lfs-track.py

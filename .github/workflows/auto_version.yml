@@ -1,0 +1,129 @@
+# Workflow name
+name: Auto Version Bump
+
+# Controls when the workflow will run
+on:
+  push:
+    branches:
+      - main # Triggers the workflow on push events to the main branch
+
+# Defines the jobs that will run as part of the workflow
+jobs:
+  versioning:
+    # Specifies the runner environment
+    runs-on: ubuntu-latest
+    # Grants necessary permissions for the GITHUB_TOKEN
+    permissions:
+      contents: write # Required to push commits and tags
+
+    # Defines the sequence of steps within the job
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          # Fetch all history for all branches and tags.
+          # This is important for accurate versioning and tag pushing.
+          fetch-depth: 0
+          # Use a Personal Access Token (PAT) if you need to trigger
+          # other workflows based on this push. Store it as a secret.
+          # Replace 'YOUR_PAT_SECRET_NAME' with the name of your secret.
+          # token: ${{ secrets.YOUR_PAT_SECRET_NAME }} # Uncomment if needed
+
+      # Step 2: Get the latest commit message
+      - name: Get latest commit message
+        id: get_commit
+        run: |
+          # Extract the subject line of the latest commit message
+          # Using '%s' gets just the first line (subject)
+          # Using '%B' gets the full message body
+          # Choose the one appropriate for your commit message convention
+          COMMIT_MSG=$(git log -1 --pretty=%B | tr -d '\n')
+          echo "Commit message: $COMMIT_MSG"
+          # Set the commit message as an output variable for later steps
+          echo "commit_message=$COMMIT_MSG" >> $GITHUB_OUTPUT
+
+      # Step 3: Determine the type of version bump based on the commit message
+      - name: Determine version bump type
+        id: determine_bump
+        run: |
+          # Check if the commit message contains specific keywords
+          if [[ "${{ steps.get_commit.outputs.commit_message }}" == *"[bump:major]"* ]]; then
+            echo "Bumping major version"
+            echo "bump_type=major" >> $GITHUB_OUTPUT
+          elif [[ "${{ steps.get_commit.outputs.commit_message }}" == *"[bump:minor]"* ]]; then
+            echo "Bumping minor version"
+            echo "bump_type=minor" >> $GITHUB_OUTPUT
+          else
+            # Default to patch bump if no specific keyword is found
+            echo "Bumping patch version (default)"
+            echo "bump_type=patch" >> $GITHUB_OUTPUT
+          fi
+
+      # Step 4: Read the current version, calculate the new version, and write it back
+      - name: Read and bump version
+        id: versioning
+        run: |
+          # Check if VERSION file exists
+          if [[ ! -f VERSION ]]; then
+            echo "VERSION file not found. Creating with 0.1.0"
+            echo "0.1.0" > VERSION
+          fi
+
+          # Read the current version from the VERSION file
+          CURRENT_VERSION=$(cat VERSION)
+          echo "Current version: $CURRENT_VERSION"
+
+          # Use parameter expansion to split the version string
+          # This is safer than using IFS if the version format is guaranteed
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+          PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+
+          # Increment the version parts based on the bump type
+          BUMP_TYPE="${{ steps.determine_bump.outputs.bump_type }}"
+          if [[ "$BUMP_TYPE" == "major" ]]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [[ "$BUMP_TYPE" == "minor" ]]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else # patch
+            PATCH=$((PATCH + 1))
+          fi
+
+          # Construct the new version string
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "New version: $NEW_VERSION"
+
+          # Write the new version back to the VERSION file
+          echo $NEW_VERSION > VERSION
+          # Set the new version as an output variable
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      # Step 5: Commit the version bump and push the changes including the new tag
+      - name: Commit and push version bump
+        run: |
+          # Configure Git user identity for the commit
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage the updated VERSION file
+          git add VERSION
+
+          # Commit the change with a conventional commit message
+          # Check if there are changes to commit before committing
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(version): bump version to v${{ steps.versioning.outputs.new_version }}"
+
+            # Create the Git tag
+            git tag v${{ steps.versioning.outputs.new_version }}
+
+            # Push the commit and the tag to the main branch
+            # Using '--tags' ensures all local tags are pushed
+            echo "Pushing commit and tag v${{ steps.versioning.outputs.new_version }} to origin main"
+            git push origin main --tags
+          fi
