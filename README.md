@@ -1,6 +1,6 @@
-# Example MRI Data for Hypermri Docs
+# Test Data for hypermri
 
-This repository contains example MRI datasets (e.g., `001_example_4`) for the `hypermri` documentation.
+This repository contains MRI datasets for testing the `hypermri` package.
 
 **Note:** It uses **Git LFS** for large files and a **pre-commit hook** to ensure MRI data is tracked correctly.
 
@@ -20,7 +20,7 @@ The pre-commit hook runs automatically on `git commit`. It will block the commit
 
 ## 🎯 Usage
 
-1.  Add your example MRI data.
+1.  Add your MRI test data.
 2.  Stage and commit files as usual (`git add .`, `git commit ...`).
 3.  **If the pre-commit hook blocks the commit:**
     * It means binary files were added without being tracked by Git LFS.
